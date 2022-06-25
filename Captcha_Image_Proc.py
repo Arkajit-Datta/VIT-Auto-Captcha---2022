@@ -2,10 +2,11 @@ import logging
 import cv2
 import numpy as np
 from PIL import Image, ImageEnhance
+from pyparsing import cpp_style_comment
 from scipy.signal import find_peaks, find_peaks_cwt
 from random import random
 from collections import Counter
-
+import time
 
 class CaptchaImageProc:
     def __init__(self,img_path) -> None:
@@ -17,11 +18,16 @@ class CaptchaImageProc:
         img = cv2.imread(self.img_path)
         return img
     
-    def save_img(self, img_obj) -> None:
+    def save_img(self, img_obj, flag = False) -> None:
         logging.info("Writing the Image")
+        if flag:
+            image_path = self.img_path
+            path_list = image_path.split(".")
+            new_image_path = path_list[0]+'.png'
+            self.img_path = new_image_path
         cv2.imwrite(self.img_path, img_obj)
         
-    def background_removal(self, noise_margin = 0, brightness = 1.5, contrast = 64) -> None:
+    def background_removal(self, noise_margin = 0, brightness = 1.5, contrast = -64) -> None:
         '''
         TODO: Reconginse multiple peaks from the histogram and clean all of them
         '''
@@ -32,11 +38,20 @@ class CaptchaImageProc:
             logging.exception("Error in reading the image")
             return 
         logging.info("Started Background removal")
+        # plt.hist(img.ravel(), 256, [0,256])
+        # plt.show()
+
         hist = sorted([(intensity, freq) for intensity, freq in Counter(img.ravel()).items()], key=lambda x: x[0])[:-2]
+        # freq, bins = np.histogram(img.ravel(), bins=(0, 255))
+        # hist = list(zip(bins, freq))
         x = np.array([item[1] for item in hist])
         med = np.median(x)
         peaks, _ = find_peaks(x, height=med, distance=5)
         np.diff(peaks)
+        # plt.plot(x)
+        # plt.plot(peaks, x[peaks], "x")
+        # plt.show()
+
         peaks = sorted(peaks, reverse=True)
         og_shape = img.shape
         if noise_margin > 0:
@@ -51,7 +66,7 @@ class CaptchaImageProc:
         logging.info("Background removal completed")
         #saving the img
         try:
-            self.save_img(img)
+            self.save_img(img, flag=True)
         except Exception as e:
             logging.exception("Error in saving the image")
             return
@@ -130,10 +145,12 @@ class CaptchaImageProc:
         '''
         logging.info("Started processing the Image")
         self.background_removal()
-        self.inscrease_constrast()
+        # self.inscrease_constrast()
         self.clean_image()
-        logging.info("Image Processing is ready, Image is ready for OCR!")
+        logging.info("Image Processing is done, Image is ready for OCR!")
 
 
         
-        
+if __name__ == "__main__":
+    captcha_img_proc = CaptchaImageProc(img_path="CaptchaImages/c4.jpeg")
+    captcha_img_proc.process()
