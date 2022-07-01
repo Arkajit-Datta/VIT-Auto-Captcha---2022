@@ -17,9 +17,6 @@ import uvicorn
 import shutil
 import os
 from Captcha_Image_Proc import CaptchaImageProc
-from OCR_proc import do_ocr
-import easyocr
-reader = easyocr.Reader(['en'])
 
 logging.basicConfig(
     level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s"
