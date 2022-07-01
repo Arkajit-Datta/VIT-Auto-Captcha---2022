@@ -101,7 +101,7 @@ def recognise(captchaImg: UploadFile = File(...)):
         )
     #sending the captcha for OCR 
     captcha_img_file = open("CaptchaImages/captcha.png", "rb")
-    ocr_url = "http://13.127.18.222/doOcr/"
+    ocr_url = "http://127.0.0.1:5000/doOcr/"
     try:
         response = requests.post(ocr_url, files={"captchaImg": captcha_img_file})
     except Exception as e:
