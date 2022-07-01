@@ -7,16 +7,20 @@ FastAPI app to make the api end points
         2. (-2) -- Image file could not be saved in the server (Error at server side)
         3. (-3) -- Error in Processing the Image, send the request again to the server
         4. (-4) -- Error in OCR, Send the Image again to the server
+        5. (-5) -- Error in receiving the OCR response 
 '''
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import logging
 import uvicorn
 import shutil
 import os
+import base64
+import json
+import requests
 from Captcha_Image_Proc import CaptchaImageProc
+
 
 logging.basicConfig(
     level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s"
@@ -57,7 +61,7 @@ def recognise(captchaImg: UploadFile = File(...)):
     path_captcha_storage = "CaptchaImages"
     
     if captchaImg != None:
-        captchaImg_filename = captchaImg.filename
+        captchaImg_filename = "captcha.png" #giving all the captchas the same name in order to manage space 
         path_captcha_storage_final = os.path.join(path_captcha_storage, captchaImg_filename)
         try:
             logging.info("Storing the Captcha Image")
@@ -96,8 +100,11 @@ def recognise(captchaImg: UploadFile = File(...)):
                 "error_message": -3
             }
         )
+    #sending the captcha for OCR 
+    captcha_img_file = open("CaptchaImages/captcha.png", "rb")
+    ocr_url = "http://13.127.18.222/doOcr/"
     try:
-        captcha_res = do_ocr(path_captcha_storage_final, reader=reader)
+        response = requests.post(ocr_url, files={"captchaImg": captcha_img_file})
     except Exception as e:
         logging.exception("Error in OCR")
         return JSONResponse(
@@ -107,13 +114,36 @@ def recognise(captchaImg: UploadFile = File(...)):
                 "error_message": -4
             }
         )
-    return JSONResponse(
-        status_code=200,
-        content={
-            "captcha": captcha_res,
-            "message":"Successfull in extracting the captcha"
-        }
-    )
+    if response.ok:
+        result_dict = json.loads(response.text)
+        logging.info(result_dict)
+        if "error_message" in result_dict:
+            logging.exception("Error in OCR, Error in the OCR Server")
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "message": "Error in OCR",
+                    "error_message": -4
+                }
+            )
+        else:
+            logging.info("Successful OCR in Server Recieved the Results")
+            captcha_res = result_dict["captcha"]
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "captcha": captcha_res,
+                    "message":"Successfull in extracting the captcha"
+                }
+            )
+    else:
+        return JSONResponse(
+                status_code=404,
+                content={
+                    "message": "Error in OCR",
+                    "error_message": -5
+                }
+            )
         
 if __name__ == "__main__":
     uvicorn.run(
