@@ -2,7 +2,6 @@ import logging
 import cv2
 import numpy as np
 from PIL import Image, ImageEnhance
-from pyparsing import cpp_style_comment
 from scipy.signal import find_peaks, find_peaks_cwt
 from random import random
 from collections import Counter
