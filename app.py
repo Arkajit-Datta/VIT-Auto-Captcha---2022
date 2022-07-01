@@ -16,7 +16,6 @@ import logging
 import uvicorn
 import shutil
 import os
-import base64
 import json
 import requests
 from Captcha_Image_Proc import CaptchaImageProc
@@ -148,6 +147,6 @@ def recognise(captchaImg: UploadFile = File(...)):
 if __name__ == "__main__":
     uvicorn.run(
         app,
-        port=5000,
+        port=8080,
         host="127.0.0.1",
     )
