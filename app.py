@@ -143,7 +143,17 @@ def recognise(captchaImg: UploadFile = File(...)):
                     "error_message": -5
                 }
             )
-        
+
+#Temporary Route
+@app.post("/temp/")
+def recognise(temp_int: int = Form(...), temp_int1: int = Form(...)):
+    return JSONResponse(
+        status_code=200,
+        content={
+            "message": temp_int,
+        }
+    )
+
 if __name__ == "__main__":
     uvicorn.run(
         app,
