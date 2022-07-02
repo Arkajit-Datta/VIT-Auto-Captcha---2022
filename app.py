@@ -9,17 +9,22 @@ FastAPI app to make the api end points
         4. (-4) -- Error in OCR, Send the Image again to the server
         5. (-5) -- Error in receiving the OCR response 
 '''
+import base64
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import logging
 import uvicorn
 import shutil
 import os
 import json
 import requests
+from typing import Union, Optional
 from Captcha_Image_Proc import CaptchaImageProc
-
+from base64 import decodebytes
+from PIL import Image
+import io
 
 logging.basicConfig(
     level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s"
@@ -45,6 +50,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+#request to recieve the image 
+class request_recognise(BaseModel):
+    img: str
+
 @app.get("/")
 def root():
     logging.info("This api is up")
@@ -57,6 +66,7 @@ def root():
 
 @app.post("/recogniseCaptcha/")
 def recognise(captchaImg: UploadFile = File(...)):
+    
     path_captcha_storage = "CaptchaImages"
     
     if captchaImg != None:
@@ -85,6 +95,82 @@ def recognise(captchaImg: UploadFile = File(...)):
                 "error_message": -1
             }
         )
+    
+    #now sending the image for image processing 
+    captcha_img_proc = CaptchaImageProc(path_captcha_storage_final)
+    try:
+        captcha_img_proc.process()
+    except Exception as e:
+        logging.exception("error in processing the image")
+        return JSONResponse(
+            status_code=404,
+            content={
+                "message": "Error in Image processing",
+                "error_message": -3
+            }
+        )
+    #sending the captcha for OCR 
+    captcha_img_file = open("CaptchaImages/captcha.png", "rb")
+    ocr_url = "http://127.0.0.1:5000/doOcr/"
+    try:
+        response = requests.post(ocr_url, files={"captchaImg": captcha_img_file})
+    except Exception as e:
+        logging.exception("Error in OCR")
+        return JSONResponse(
+            status_code=404,
+            content={
+                "message": "Error in OCR",
+                "error_message": -4
+            }
+        )
+    if response.ok:
+        result_dict = json.loads(response.text)
+        logging.info(result_dict)
+        if "error_message" in result_dict:
+            logging.exception("Error in OCR, Error in the OCR Server")
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "message": "Error in OCR",
+                    "error_message": -4
+                }
+            )
+        else:
+            logging.info("Successful OCR in Server Recieved the Results")
+            captcha_res = result_dict["captcha"]
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "captcha": captcha_res,
+                    "message":"Successfull in extracting the captcha"
+                }
+            )
+    else:
+        return JSONResponse(
+                status_code=404,
+                content={
+                    "message": "Error in OCR",
+                    "error_message": -5
+                }
+            )
+
+@app.post("/recogniseCaptchaBase64/")
+def recognise(req: request_recognise):
+    #saving the base64 into binary file 
+    path_captcha_storage = "CaptchaImages"
+    path_bin_file_storage = os.path.join(path_captcha_storage, "temp.bin")
+    captchaImg_filename = "captcha.png" #giving all the captchas the same name in order to manage space 
+    path_captcha_storage_final = os.path.join(path_captcha_storage, captchaImg_filename)
+
+    img = req.img
+    base64_bytes = img.encode('ascii')
+    try:
+        logging.info("Opening the Binary File")
+        with open(path_captcha_storage_final, "wb") as buffer:
+            buffer.write(base64.b64decode(base64_bytes))
+    except Exception as e:
+        logging.exception("error in saving the file")
+
     
     #now sending the image for image processing 
     captcha_img_proc = CaptchaImageProc(path_captcha_storage_final)
